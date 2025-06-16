@@ -4,7 +4,7 @@ server:
   # 服务监听端口   
   port: 8004
   # 接口访问令牌，调用API时需在header中携带          
-  token: "your_api_token"  
+  authorization: "Bearer ac1ab7b959989135c030157ee5b73eb5"
 
 mysql:
   # MySQL数据库主机地址

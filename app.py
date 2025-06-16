@@ -37,7 +37,7 @@ def load_config():
 
 try:
     config = load_config()
-    API_TOKEN = config['server']['token']
+    API_TOKEN = config['server']['authorization']
 except Exception as e:
     logger.error(f"配置加载失败: {e}")
     raise
@@ -99,7 +99,7 @@ def ensure_16k_wav(audio_bytes):
 
 @app.post("/register", summary="声纹注册")
 async def register(
-    token: str = Header(..., description="接口令牌"),
+    authorization: str = Header(..., description="接口令牌", alias="authorization"),
     speaker_id: str = Form(..., description="说话人ID"),
     file: UploadFile = File(..., description="WAV音频文件")
 ):
@@ -112,7 +112,7 @@ async def register(
     返回:
         注册结果
     """
-    check_token(token)
+    check_token(authorization)
     audio_path = None
     try:
         audio_bytes = await file.read()
@@ -131,7 +131,7 @@ async def register(
 
 @app.post("/identify", summary="声纹识别")
 async def identify(
-    token: str = Header(..., description="接口令牌"),
+    authorization: str = Header(..., description="接口令牌", alias="authorization"),
     speaker_ids: str = Form(..., description="候选说话人ID，逗号分隔"),
     file: UploadFile = File(..., description="WAV音频文件")
 ):
@@ -144,7 +144,7 @@ async def identify(
     返回:
         识别结果（说话人ID、相似度分数）
     """
-    check_token(token)
+    check_token(authorization)
     candidate_ids = [x.strip() for x in speaker_ids.split(",") if x.strip()]
     if not candidate_ids:
         logger.warning("候选说话人ID不能为空。")
