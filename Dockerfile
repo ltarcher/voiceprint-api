@@ -22,7 +22,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制应用代码
 COPY app/ ./app/
-COPY data/ ./data/
 COPY start_server.py .
 
 # 创建临时目录
