@@ -40,7 +40,8 @@ def main():
         print("=" * 60)
         local_ip = get_local_ip()
         print(
-            f"3D-Speaker 声纹API服务已启动，访问: http://{local_ip}:{settings.port}/voiceprint/docs"
+            f"声纹接口地址: http://{local_ip}:{settings.port}/voiceprint/health?key="
+            + settings.api_token
         )
         print("=" * 60)
 
