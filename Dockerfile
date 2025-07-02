@@ -1,18 +1,8 @@
-# 使用Python 3.9作为基础镜像
-FROM python:3.9-slim
+# 第一阶段：构建Python依赖
+FROM python:3.10-slim AS builder
 
 # 设置工作目录
 WORKDIR /app
-
-# 安装系统依赖
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    libsndfile1 \
-    libasound2-dev \
-    portaudio19-dev \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
 COPY requirements.txt .
@@ -20,16 +10,20 @@ COPY requirements.txt .
 # 安装Python依赖
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 第二阶段：运行阶段
+FROM python:3.10-slim
+
+# 设置工作目录
+WORKDIR /app
+
+# 从构建阶段复制Python依赖
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+
+# 创建必要的目录
+RUN mkdir -p tmp data
+
 # 复制应用代码
-COPY app/ ./app/
-COPY start_server.py .
-
-# 创建临时目录
-RUN mkdir -p tmp
-
-# 设置环境变量
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
+COPY . .
 
 # 启动命令
 CMD ["python", "start_server.py"]
