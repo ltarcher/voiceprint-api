@@ -143,29 +143,3 @@ async def delete_voiceprint(
     except Exception as e:
         logger.error(f"删除声纹异常 {speaker_id}: {e}")
         raise HTTPException(status_code=500, detail=f"删除声纹失败: {str(e)}")
-
-
-@router.get(
-    "/stats",
-    summary="获取统计信息",
-    description="获取声纹数据库统计信息",
-    dependencies=[Depends(security)],
-)
-async def get_stats(
-    token: AuthorizationToken,
-):
-    """
-    获取统计信息接口
-
-    Args:
-        token: 接口令牌（Header）
-
-    Returns:
-        dict: 统计信息
-    """
-    try:
-        count = voiceprint_service.get_voiceprint_count()
-        return {"total_voiceprints": count, "status": "healthy"}
-    except Exception as e:
-        logger.error(f"获取统计信息异常: {e}")
-        raise HTTPException(status_code=500, detail=f"获取统计信息失败: {str(e)}")

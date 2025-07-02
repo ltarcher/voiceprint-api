@@ -38,18 +38,3 @@ class VoiceprintIdentifyResponse(BaseModel):
 
     class Config:
         schema_extra = {"example": {"speaker_id": "user_001", "score": 0.85}}
-
-
-class HealthResponse(BaseModel):
-    """健康检查响应模型"""
-
-    status: str
-    message: str
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "status": "healthy",
-                "message": "3D-Speaker voiceprint API service running.",
-            }
-        }
