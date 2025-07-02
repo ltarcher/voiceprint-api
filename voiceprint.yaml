@@ -2,13 +2,13 @@ server:
   # 服务监听地址，0.0.0.0 表示所有网卡
   host: 0.0.0.0
   # 服务监听端口   
-  port: 8004
-  # 接口访问令牌，调用API时需在header中携带          
-  authorization: "Bearer ac1ab7b959989135c030157ee5b73eb5"
+  port: 8005
+  # 接口访问令牌，会随机生成，如果为空，会自动生成
+  authorization: 
 
 mysql:
   # MySQL数据库主机地址
-  host: "localhost"
+  host: "127.0.0.1"
   # 端口  
   port: 3306
   # 用户名          

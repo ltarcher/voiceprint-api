@@ -58,7 +58,23 @@ CREATE TABLE voiceprints (
 ```
 - 复制 `voiceprint.yaml` 为 `data/.voiceprint.yaml`
 
-  4. 启动
+4. 修改配置
+修改`data/.voiceprint.yaml`连接数据库的IP、用户名和密码
+```
+mysql:
+  database: voiceprint_db
+  # 你的mysql所在的局域网ip
+  host: "127.0.0.1"
+  # 密码
+  password: 123456
+  # 端口
+  port: 3306
+  # 用户名
+  user: root 
+```
+
+
+5. 启动
 ```
 python app.py
 ```

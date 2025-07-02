@@ -12,11 +12,14 @@ class VoiceprintDB:
 
         :param config: dict，包含数据库连接信息（host, port, user, password, database）
         """
+        # 确保密码字段是字符串类型
+        password = str(config['password']) if config['password'] is not None else ""
+        
         self.conn = pymysql.connect(
             host=config['host'],
             port=config['port'],
             user=config['user'],
-            password=config['password'],
+            password=password,
             database=config['database'],
             charset='utf8mb4',
             autocommit=True
