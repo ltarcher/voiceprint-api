@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
+import time
 from ...services.voiceprint_service import voiceprint_service
 from ...core.logging import get_logger
 from ...core.config import settings
@@ -29,14 +30,28 @@ async def health_check(
     Raises:
         HTTPException: 当密钥不正确时返回401错误
     """
+    start_time = time.time()
+    logger.info("收到健康检查请求")
+
     # 验证密钥
+    key_check_start = time.time()
     if key != settings.api_token:
         logger.warning(f"健康检查接口收到无效密钥: {key}")
         raise HTTPException(status_code=401, detail="密钥验证失败")
+    key_check_time = time.time() - key_check_start
+    logger.info(f"密钥验证完成，耗时: {key_check_time:.3f}秒")
 
     try:
+        count_start = time.time()
+        logger.info("开始获取声纹统计信息...")
         count = voiceprint_service.get_voiceprint_count()
+        count_time = time.time() - count_start
+        logger.info(f"声纹统计信息获取完成，总数: {count}，耗时: {count_time:.3f}秒")
+
+        total_time = time.time() - start_time
+        logger.info(f"健康检查请求完成，总耗时: {total_time:.3f}秒")
         return {"total_voiceprints": count, "status": "healthy"}
     except Exception as e:
-        logger.error(f"获取统计信息异常: {e}")
+        total_time = time.time() - start_time
+        logger.error(f"获取统计信息异常，总耗时: {total_time:.3f}秒，错误: {e}")
         raise HTTPException(status_code=500, detail=f"获取统计信息失败: {str(e)}")

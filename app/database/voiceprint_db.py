@@ -1,4 +1,5 @@
 import numpy as np
+import time
 from typing import Dict, List, Optional
 from .connection import db_connection
 from ..core.logging import get_logger
@@ -46,6 +47,14 @@ class VoiceprintDB:
         Returns:
             Dict[str, np.ndarray]: {speaker_id: 特征向量}
         """
+        start_time = time.time()
+        query_type = (
+            f"指定ID查询({len(speaker_ids) if speaker_ids else 0}个)"
+            if speaker_ids
+            else "全量查询"
+        )
+        logger.info(f"开始数据库查询: {query_type}")
+
         try:
             with db_connection.get_cursor() as cursor:
                 if speaker_ids:
@@ -56,15 +65,29 @@ class VoiceprintDB:
                     sql = "SELECT speaker_id, feature_vector FROM voiceprints"
                     cursor.execute(sql)
 
+                fetch_start = time.time()
                 results = cursor.fetchall()
+                fetch_time = time.time() - fetch_start
+                logger.info(
+                    f"数据库查询完成，获取到{len(results)}条记录，查询耗时: {fetch_time:.3f}秒"
+                )
+
                 # 将数据库中的二进制特征转为numpy数组
+                convert_start = time.time()
                 voiceprints = {
                     row[0]: np.frombuffer(row[1], dtype=np.float32) for row in results
                 }
-                logger.info(f"获取到 {len(voiceprints)} 个声纹特征")
+                convert_time = time.time() - convert_start
+                logger.info(f"数据转换完成，转换耗时: {convert_time:.3f}秒")
+
+                total_time = time.time() - start_time
+                logger.info(
+                    f"获取到 {len(voiceprints)} 个声纹特征，总耗时: {total_time:.3f}秒"
+                )
                 return voiceprints
         except Exception as e:
-            logger.error(f"获取声纹特征失败: {e}")
+            total_time = time.time() - start_time
+            logger.error(f"获取声纹特征失败，总耗时: {total_time:.3f}秒，错误: {e}")
             return {}
 
     def delete_voiceprint(self, speaker_id: str) -> bool:
@@ -98,15 +121,22 @@ class VoiceprintDB:
         Returns:
             int: 声纹特征总数
         """
+        start_time = time.time()
+        logger.info("开始查询声纹特征总数...")
+
         try:
             with db_connection.get_cursor() as cursor:
                 sql = "SELECT COUNT(*) FROM voiceprints"
                 cursor.execute(sql)
                 result = cursor.fetchone()
                 count = result[0] if result else 0
+
+                total_time = time.time() - start_time
+                logger.info(f"声纹特征总数查询完成: {count}，耗时: {total_time:.3f}秒")
                 return count
         except Exception as e:
-            logger.error(f"获取声纹特征总数失败: {e}")
+            total_time = time.time() - start_time
+            logger.error(f"获取声纹特征总数失败，总耗时: {total_time:.3f}秒，错误: {e}")
             return 0
 
 

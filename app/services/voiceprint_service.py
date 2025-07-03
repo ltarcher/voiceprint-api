@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import time
 from typing import Dict, List, Tuple, Optional
 from modelscope.pipelines import pipeline
 from modelscope.utils.constant import Tasks
@@ -53,13 +54,28 @@ class VoiceprintService:
         Returns:
             np.ndarray: 声纹特征向量
         """
+        start_time = time.time()
+        logger.info(f"开始提取声纹特征，音频文件: {audio_path}")
+
         try:
+            pipeline_start = time.time()
             result = self._pipeline([audio_path], output_emb=True)
+            pipeline_time = time.time() - pipeline_start
+            logger.info(f"模型推理完成，耗时: {pipeline_time:.3f}秒")
+
+            convert_start = time.time()
             emb = self._to_numpy(result["embs"][0]).astype(np.float32)
-            logger.debug(f"声纹特征提取成功，维度: {emb.shape}")
+            convert_time = time.time() - convert_start
+            logger.info(f"数据转换完成，耗时: {convert_time:.3f}秒")
+
+            total_time = time.time() - start_time
+            logger.info(
+                f"声纹特征提取成功，维度: {emb.shape}，总耗时: {total_time:.3f}秒"
+            )
             return emb
         except Exception as e:
-            logger.error(f"声纹特征提取失败: {e}")
+            total_time = time.time() - start_time
+            logger.error(f"声纹特征提取失败，总耗时: {total_time:.3f}秒，错误: {e}")
             raise
 
     def calculate_similarity(self, emb1: np.ndarray, emb2: np.ndarray) -> float:
@@ -138,30 +154,56 @@ class VoiceprintService:
         Returns:
             Tuple[str, float]: (识别出的说话人ID, 相似度分数)
         """
+        start_time = time.time()
+        logger.info(f"开始声纹识别流程，候选说话人数量: {len(speaker_ids)}")
+
         audio_path = None
         try:
             # 验证音频文件
+            validation_start = time.time()
             if not audio_processor.validate_audio_file(audio_bytes):
                 logger.warning("音频文件验证失败")
                 return "", 0.0
+            validation_time = time.time() - validation_start
+            logger.info(f"音频文件验证完成，耗时: {validation_time:.3f}秒")
 
             # 处理音频文件
+            audio_process_start = time.time()
             audio_path = audio_processor.ensure_16k_wav(audio_bytes)
+            audio_process_time = time.time() - audio_process_start
+            logger.info(f"音频文件处理完成，耗时: {audio_process_time:.3f}秒")
 
             # 提取声纹特征
+            extract_start = time.time()
+            logger.info("开始提取声纹特征...")
             test_emb = self.extract_voiceprint(audio_path)
+            extract_time = time.time() - extract_start
+            logger.info(f"声纹特征提取完成，耗时: {extract_time:.3f}秒")
 
             # 获取候选声纹特征
+            db_query_start = time.time()
+            logger.info("开始查询数据库获取候选声纹特征...")
             voiceprints = voiceprint_db.get_voiceprints(speaker_ids)
+            db_query_time = time.time() - db_query_start
+            logger.info(
+                f"数据库查询完成，获取到{len(voiceprints)}个声纹特征，耗时: {db_query_time:.3f}秒"
+            )
+
             if not voiceprints:
                 logger.info("未找到候选说话人声纹")
                 return "", 0.0
 
             # 计算相似度
+            similarity_start = time.time()
+            logger.info("开始计算相似度...")
             similarities = {}
             for name, emb in voiceprints.items():
                 similarity = self.calculate_similarity(test_emb, emb)
                 similarities[name] = similarity
+            similarity_time = time.time() - similarity_start
+            logger.info(
+                f"相似度计算完成，共计算{len(similarities)}个，耗时: {similarity_time:.3f}秒"
+            )
 
             # 找到最佳匹配
             if not similarities:
@@ -172,19 +214,30 @@ class VoiceprintService:
 
             # 检查是否超过阈值
             if match_score < self.similarity_threshold:
-                logger.info(f"未识别到说话人，最高分: {match_score:.4f}")
+                logger.info(
+                    f"未识别到说话人，最高分: {match_score:.4f}，阈值: {self.similarity_threshold}"
+                )
+                total_time = time.time() - start_time
+                logger.info(f"声纹识别流程完成，总耗时: {total_time:.3f}秒")
                 return "", match_score
 
-            logger.info(f"识别到说话人: {match_name}, 分数: {match_score:.4f}")
+            total_time = time.time() - start_time
+            logger.info(
+                f"识别到说话人: {match_name}, 分数: {match_score:.4f}, 总耗时: {total_time:.3f}秒"
+            )
             return match_name, match_score
 
         except Exception as e:
-            logger.error(f"声纹识别异常: {e}")
+            total_time = time.time() - start_time
+            logger.error(f"声纹识别异常，总耗时: {total_time:.3f}秒，错误: {e}")
             return "", 0.0
         finally:
             # 清理临时文件
+            cleanup_start = time.time()
             if audio_path:
                 audio_processor.cleanup_temp_file(audio_path)
+            cleanup_time = time.time() - cleanup_start
+            logger.debug(f"临时文件清理完成，耗时: {cleanup_time:.3f}秒")
 
     def delete_voiceprint(self, speaker_id: str) -> bool:
         """
@@ -205,7 +258,18 @@ class VoiceprintService:
         Returns:
             int: 声纹总数
         """
-        return voiceprint_db.count_voiceprints()
+        start_time = time.time()
+        logger.info("开始获取声纹总数...")
+
+        try:
+            count = voiceprint_db.count_voiceprints()
+            total_time = time.time() - start_time
+            logger.info(f"声纹总数获取完成: {count}，耗时: {total_time:.3f}秒")
+            return count
+        except Exception as e:
+            total_time = time.time() - start_time
+            logger.error(f"获取声纹总数失败，总耗时: {total_time:.3f}秒，错误: {e}")
+            raise
 
 
 # 全局声纹服务实例
