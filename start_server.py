@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
 生产环境启动脚本
-支持高并发部署
 """
 
 import os
 import sys
 import socket
+import signal
+import uvicorn
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -33,10 +34,22 @@ def get_local_ip():
         return "127.0.0.1"
 
 
+def signal_handler(signum, frame):
+    """信号处理器"""
+    logger.info(f"收到信号 {signum}，正在优雅关闭服务...")
+    sys.exit(0)
+
+
 def main():
     """主函数"""
+    # 注册信号处理器
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
     try:
-        logger.info(f"生产环境服务启动中，监听地址: {settings.host}:{settings.port}")
+        logger.info(
+            f"生产环境服务启动中（Uvicorn），监听地址: {settings.host}:{settings.port}"
+        )
         print("=" * 60)
         local_ip = get_local_ip()
         print(
@@ -45,46 +58,21 @@ def main():
         )
         print("=" * 60)
 
-        # 使用gunicorn启动，支持高并发
-        import gunicorn.app.base
-
-        class StandaloneApplication(gunicorn.app.base.BaseApplication):
-            def __init__(self, app, options=None):
-                self.options = options or {}
-                self.application = app
-                super().__init__()
-
-            def load_config(self):
-                config = {
-                    key: value
-                    for key, value in self.options.items()
-                    if key in self.cfg.settings and value is not None
-                }
-                for key, value in config.items():
-                    self.cfg.set(key.lower(), value)
-
-            def load(self):
-                return self.application
-
-        options = {
-            "bind": f"{settings.host}:{settings.port}",
-            "workers": 1,  # 单进程模式，避免模型重复加载
-            "worker_class": "uvicorn.workers.UvicornWorker",  # 使用UvicornWorker支持ASGI
-            "worker_connections": 1000,  # 每个worker的连接数
-            "max_requests": 1000,  # 每个worker处理的最大请求数
-            "max_requests_jitter": 100,  # 随机抖动，避免同时重启
-            "timeout": 120,  # 请求超时时间
-            "keepalive": 2,  # keep-alive连接数
-            "preload_app": True,  # 预加载应用
-            "access_log_format": '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s',
-            "accesslog": "-",  # 访问日志输出到stdout
-            "errorlog": "-",  # 错误日志输出到stderr
-            "loglevel": "info",
-        }
-
-        from app.application import app
-
-        StandaloneApplication(app, options).run()
+        # 使用Uvicorn启动，配置优化
+        uvicorn.run(
+            "app.application:app",
+            host=settings.host,
+            port=settings.port,
+            reload=False,  # 生产环境关闭热重载
+            workers=1,  # 单进程模式，避免模型重复加载
+            access_log=True,  # 开启访问日志
+            log_level="info",
+            timeout_keep_alive=30,  # keep-alive超时
+            timeout_graceful_shutdown=300,  # 优雅关闭超时
+            limit_concurrency=1000,  # 并发连接限制
+            limit_max_requests=1000,  # 最大请求数限制
+            backlog=2048,  # 连接队列大小
+        )
 
     except KeyboardInterrupt:
         logger.info("收到中断信号，正在退出服务。")

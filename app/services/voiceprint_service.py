@@ -3,6 +3,7 @@ import torch
 import time
 import psutil
 import os
+import threading
 from typing import Dict, List, Tuple, Optional
 from modelscope.pipelines import pipeline
 from modelscope.utils.constant import Tasks
@@ -20,6 +21,7 @@ class VoiceprintService:
     def __init__(self):
         self._pipeline = None
         self.similarity_threshold = settings.similarity_threshold
+        self._pipeline_lock = threading.Lock()  # 添加线程锁
         self._init_pipeline()
 
     def _init_pipeline(self) -> None:
@@ -100,11 +102,18 @@ class VoiceprintService:
         self._log_system_resources("推理前")
 
         try:
-            pipeline_start = time.time()
-            logger.info("开始模型推理...")
-            result = self._pipeline([audio_path], output_emb=True)
-            pipeline_time = time.time() - pipeline_start
-            logger.info(f"模型推理完成，耗时: {pipeline_time:.3f}秒")
+            # 使用线程锁确保模型推理的线程安全
+            with self._pipeline_lock:
+                pipeline_start = time.time()
+                logger.info("开始模型推理...")
+
+                # 检查pipeline是否可用
+                if self._pipeline is None:
+                    raise RuntimeError("声纹模型未初始化")
+
+                result = self._pipeline([audio_path], output_emb=True)
+                pipeline_time = time.time() - pipeline_start
+                logger.info(f"模型推理完成，耗时: {pipeline_time:.3f}秒")
 
             # 记录推理后系统资源
             self._log_system_resources("推理后")

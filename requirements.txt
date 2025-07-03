@@ -14,17 +14,4 @@ uvicorn==0.29.0
 PyMySQL==1.1.0
 python-multipart==0.0.9
 librosa==0.10.1
-
-# 高并发支持
-gunicorn==21.2.0
-gevent==23.9.1
-greenlet==3.0.3
-
-# 性能优化
-orjson==3.9.10
-ujson==5.8.0
-
-# 监控和日志
-prometheus-client==0.19.0
-structlog==23.2.0
 psutil==5.9.8
