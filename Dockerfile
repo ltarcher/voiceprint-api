@@ -1,6 +1,13 @@
 # 第一阶段：构建Python依赖
 FROM python:3.10-slim AS builder
 
+# 安装系统依赖，包括编译工具
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
 # 设置工作目录
 WORKDIR /app
 
