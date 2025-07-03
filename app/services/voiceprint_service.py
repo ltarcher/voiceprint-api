@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 import time
+import psutil
+import os
 from typing import Dict, List, Tuple, Optional
 from modelscope.pipelines import pipeline
 from modelscope.utils.constant import Tasks
@@ -22,14 +24,30 @@ class VoiceprintService:
 
     def _init_pipeline(self) -> None:
         """初始化声纹识别模型"""
+        start_time = time.time()
+        logger.info("开始初始化声纹识别模型...")
+
         try:
+            # 检查CUDA可用性
+            if torch.cuda.is_available():
+                device = "cuda"
+                logger.info(f"使用GPU设备: {torch.cuda.get_device_name(0)}")
+            else:
+                device = "cpu"
+                logger.info("使用CPU设备")
+
+            logger.info("开始加载模型: iic/speech_campplus_sv_zh-cn_3dspeaker_16k")
             self._pipeline = pipeline(
                 task=Tasks.speaker_verification,
                 model="iic/speech_campplus_sv_zh-cn_3dspeaker_16k",
+                device=device,
             )
-            logger.info("声纹模型加载成功")
+
+            init_time = time.time() - start_time
+            logger.info(f"声纹模型加载成功，耗时: {init_time:.3f}秒")
         except Exception as e:
-            logger.error(f"声纹模型加载失败: {e}")
+            init_time = time.time() - start_time
+            logger.error(f"声纹模型加载失败，耗时: {init_time:.3f}秒，错误: {e}")
             raise
 
     def _to_numpy(self, x) -> np.ndarray:
@@ -44,6 +62,27 @@ class VoiceprintService:
         """
         return x.cpu().numpy() if torch.is_tensor(x) else np.asarray(x)
 
+    def _log_system_resources(self, stage: str):
+        """记录系统资源使用情况"""
+        try:
+            cpu_percent = psutil.cpu_percent(interval=1)
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage("/")
+
+            logger.info(
+                f"[{stage}] 系统资源 - CPU: {cpu_percent}%, "
+                f"内存: {memory.percent}% ({memory.used//1024//1024}MB/{memory.total//1024//1024}MB), "
+                f"磁盘: {disk.percent}%"
+            )
+
+            # 检查当前进程资源使用
+            process = psutil.Process(os.getpid())
+            process_memory = process.memory_info()
+            logger.info(f"[{stage}] 进程内存使用: {process_memory.rss//1024//1024}MB")
+
+        except Exception as e:
+            logger.warning(f"获取系统资源信息失败: {e}")
+
     def extract_voiceprint(self, audio_path: str) -> np.ndarray:
         """
         从音频文件中提取声纹特征
@@ -57,11 +96,18 @@ class VoiceprintService:
         start_time = time.time()
         logger.info(f"开始提取声纹特征，音频文件: {audio_path}")
 
+        # 记录推理前系统资源
+        self._log_system_resources("推理前")
+
         try:
             pipeline_start = time.time()
+            logger.info("开始模型推理...")
             result = self._pipeline([audio_path], output_emb=True)
             pipeline_time = time.time() - pipeline_start
             logger.info(f"模型推理完成，耗时: {pipeline_time:.3f}秒")
+
+            # 记录推理后系统资源
+            self._log_system_resources("推理后")
 
             convert_start = time.time()
             emb = self._to_numpy(result["embs"][0]).astype(np.float32)
