@@ -1,10 +1,8 @@
 import numpy as np
 import torch
 import time
-import psutil
-import os
 import threading
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 from modelscope.pipelines import pipeline
 from modelscope.utils.constant import Tasks
 from ..core.config import settings
