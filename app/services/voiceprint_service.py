@@ -32,7 +32,7 @@ class VoiceprintService:
         try:
             # 检查CUDA可用性
             if torch.cuda.is_available():
-                device = "cuda"
+                device = "gpu"
                 logger.info(f"使用GPU设备: {torch.cuda.get_device_name(0)}")
             else:
                 device = "cpu"
@@ -64,27 +64,6 @@ class VoiceprintService:
         """
         return x.cpu().numpy() if torch.is_tensor(x) else np.asarray(x)
 
-    def _log_system_resources(self, stage: str):
-        """记录系统资源使用情况"""
-        try:
-            cpu_percent = psutil.cpu_percent(interval=1)
-            memory = psutil.virtual_memory()
-            disk = psutil.disk_usage("/")
-
-            logger.info(
-                f"[{stage}] 系统资源 - CPU: {cpu_percent}%, "
-                f"内存: {memory.percent}% ({memory.used//1024//1024}MB/{memory.total//1024//1024}MB), "
-                f"磁盘: {disk.percent}%"
-            )
-
-            # 检查当前进程资源使用
-            process = psutil.Process(os.getpid())
-            process_memory = process.memory_info()
-            logger.info(f"[{stage}] 进程内存使用: {process_memory.rss//1024//1024}MB")
-
-        except Exception as e:
-            logger.warning(f"获取系统资源信息失败: {e}")
-
     def extract_voiceprint(self, audio_path: str) -> np.ndarray:
         """
         从音频文件中提取声纹特征
@@ -98,14 +77,11 @@ class VoiceprintService:
         start_time = time.time()
         logger.info(f"开始提取声纹特征，音频文件: {audio_path}")
 
-        # 记录推理前系统资源
-        self._log_system_resources("推理前")
-
         try:
             # 使用线程锁确保模型推理的线程安全
             with self._pipeline_lock:
                 pipeline_start = time.time()
-                logger.info("开始模型推理...")
+                logger.debug("开始模型推理...")
 
                 # 检查pipeline是否可用
                 if self._pipeline is None:
@@ -113,15 +89,12 @@ class VoiceprintService:
 
                 result = self._pipeline([audio_path], output_emb=True)
                 pipeline_time = time.time() - pipeline_start
-                logger.info(f"模型推理完成，耗时: {pipeline_time:.3f}秒")
-
-            # 记录推理后系统资源
-            self._log_system_resources("推理后")
+                logger.debug(f"模型推理完成，耗时: {pipeline_time:.3f}秒")
 
             convert_start = time.time()
             emb = self._to_numpy(result["embs"][0]).astype(np.float32)
             convert_time = time.time() - convert_start
-            logger.info(f"数据转换完成，耗时: {convert_time:.3f}秒")
+            logger.debug(f"数据转换完成，耗时: {convert_time:.3f}秒")
 
             total_time = time.time() - start_time
             logger.info(
@@ -167,9 +140,9 @@ class VoiceprintService:
         """
         audio_path = None
         try:
-            # 验证音频文件
-            if not audio_processor.validate_audio_file(audio_bytes):
-                logger.warning(f"音频文件验证失败: {speaker_id}")
+            # 简化音频验证，只做基本检查
+            if len(audio_bytes) < 1000:  # 文件太小
+                logger.warning(f"音频文件过小: {speaker_id}")
                 return False
 
             # 处理音频文件
@@ -214,33 +187,30 @@ class VoiceprintService:
 
         audio_path = None
         try:
-            # 验证音频文件
-            validation_start = time.time()
-            if not audio_processor.validate_audio_file(audio_bytes):
-                logger.warning("音频文件验证失败")
+            # 简化音频验证
+            if len(audio_bytes) < 1000:
+                logger.warning("音频文件过小")
                 return "", 0.0
-            validation_time = time.time() - validation_start
-            logger.info(f"音频文件验证完成，耗时: {validation_time:.3f}秒")
 
             # 处理音频文件
             audio_process_start = time.time()
             audio_path = audio_processor.ensure_16k_wav(audio_bytes)
             audio_process_time = time.time() - audio_process_start
-            logger.info(f"音频文件处理完成，耗时: {audio_process_time:.3f}秒")
+            logger.debug(f"音频文件处理完成，耗时: {audio_process_time:.3f}秒")
 
             # 提取声纹特征
             extract_start = time.time()
-            logger.info("开始提取声纹特征...")
+            logger.debug("开始提取声纹特征...")
             test_emb = self.extract_voiceprint(audio_path)
             extract_time = time.time() - extract_start
-            logger.info(f"声纹特征提取完成，耗时: {extract_time:.3f}秒")
+            logger.debug(f"声纹特征提取完成，耗时: {extract_time:.3f}秒")
 
             # 获取候选声纹特征
             db_query_start = time.time()
-            logger.info("开始查询数据库获取候选声纹特征...")
+            logger.debug("开始查询数据库获取候选声纹特征...")
             voiceprints = voiceprint_db.get_voiceprints(speaker_ids)
             db_query_time = time.time() - db_query_start
-            logger.info(
+            logger.debug(
                 f"数据库查询完成，获取到{len(voiceprints)}个声纹特征，耗时: {db_query_time:.3f}秒"
             )
 
@@ -250,13 +220,13 @@ class VoiceprintService:
 
             # 计算相似度
             similarity_start = time.time()
-            logger.info("开始计算相似度...")
+            logger.debug("开始计算相似度...")
             similarities = {}
             for name, emb in voiceprints.items():
                 similarity = self.calculate_similarity(test_emb, emb)
                 similarities[name] = similarity
             similarity_time = time.time() - similarity_start
-            logger.info(
+            logger.debug(
                 f"相似度计算完成，共计算{len(similarities)}个，耗时: {similarity_time:.3f}秒"
             )
 

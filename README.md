@@ -11,6 +11,7 @@
 conda remove -n voiceprint-api --all -y
 conda create -n voiceprint-api python=3.10 -y
 conda activate voiceprint-api
+pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 
 pip install -r requirements.txt
 ```

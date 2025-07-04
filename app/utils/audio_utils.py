@@ -31,7 +31,7 @@ class AudioProcessor:
             str: 临时文件路径
         """
         start_time = time.time()
-        logger.info(f"开始音频处理，输入大小: {len(audio_bytes)}字节")
+        logger.debug(f"开始音频处理，输入大小: {len(audio_bytes)}字节")
 
         with tempfile.NamedTemporaryFile(
             delete=False, suffix=".wav", dir=self.tmp_dir
@@ -44,14 +44,14 @@ class AudioProcessor:
             read_start = time.time()
             data, sr = sf.read(tmp_path)
             read_time = time.time() - read_start
-            logger.info(
+            logger.debug(
                 f"音频文件读取完成，采样率: {sr}Hz，时长: {len(data)/sr:.2f}秒，耗时: {read_time:.3f}秒"
             )
 
             if sr != self.target_sample_rate:
                 # librosa重采样，支持多通道
                 resample_start = time.time()
-                logger.info(f"开始音频重采样: {sr}Hz -> {self.target_sample_rate}Hz")
+                logger.debug(f"开始音频重采样: {sr}Hz -> {self.target_sample_rate}Hz")
 
                 if data.ndim == 1:
                     data_rs = librosa.resample(
@@ -70,16 +70,16 @@ class AudioProcessor:
                     ).T
 
                 resample_time = time.time() - resample_start
-                logger.info(f"音频重采样完成，耗时: {resample_time:.3f}秒")
+                logger.debug(f"音频重采样完成，耗时: {resample_time:.3f}秒")
 
                 # 写入重采样后的音频
                 write_start = time.time()
                 sf.write(tmp_path, data_rs, self.target_sample_rate)
                 write_time = time.time() - write_start
-                logger.info(f"重采样音频写入完成，耗时: {write_time:.3f}秒")
+                logger.debug(f"重采样音频写入完成，耗时: {write_time:.3f}秒")
 
             total_time = time.time() - start_time
-            logger.info(f"音频处理完成，总耗时: {total_time:.3f}秒")
+            logger.debug(f"音频处理完成，总耗时: {total_time:.3f}秒")
             return tmp_path
 
         except Exception as e:
@@ -92,7 +92,7 @@ class AudioProcessor:
 
     def validate_audio_file(self, audio_bytes: bytes) -> bool:
         """
-        验证音频文件格式是否有效
+        验证音频文件格式是否有效（简化版本）
 
         Args:
             audio_bytes: 音频字节数据
@@ -101,7 +101,7 @@ class AudioProcessor:
             bool: 音频文件是否有效
         """
         start_time = time.time()
-        logger.info(f"开始音频文件验证，输入大小: {len(audio_bytes)}字节")
+        logger.debug(f"开始音频文件验证，输入大小: {len(audio_bytes)}字节")
 
         try:
             with tempfile.NamedTemporaryFile(
@@ -114,7 +114,7 @@ class AudioProcessor:
             read_start = time.time()
             data, sr = sf.read(tmp_path)
             read_time = time.time() - read_start
-            logger.info(
+            logger.debug(
                 f"音频文件读取完成，采样率: {sr}Hz，数据长度: {len(data)}，耗时: {read_time:.3f}秒"
             )
 
@@ -138,7 +138,7 @@ class AudioProcessor:
                 return False
 
             total_time = time.time() - start_time
-            logger.info(
+            logger.debug(
                 f"音频验证通过: {duration:.2f}秒, {sr}Hz，总耗时: {total_time:.3f}秒"
             )
             return True
@@ -164,7 +164,7 @@ class AudioProcessor:
                 os.remove(file_path)
                 logger.debug(f"临时文件已清理: {file_path}")
         except Exception as e:
-            logger.warning(f"清理临时文件失败 {file_path}: {e}")
+            logger.debug(f"清理临时文件失败 {file_path}: {e}")
 
 
 # 全局音频处理器实例
