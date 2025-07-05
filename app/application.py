@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -6,6 +6,9 @@ from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
 
 from .api.v1.api import api_router
+from loguru import logger
+from .core.version import VERSION
+import time
 
 
 def create_app() -> FastAPI:
@@ -18,7 +21,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="3D-Speaker 声纹识别API",
         description="基于3D-Speaker的声纹注册与识别服务",
-        version="2.0.0",
+        version=VERSION,
         docs_url=None,  # 禁用默认的docs路径
         redoc_url=None,  # 禁用默认的redoc路径
     )

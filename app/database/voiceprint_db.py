@@ -2,7 +2,7 @@ import numpy as np
 import time
 from typing import Dict, List, Optional
 from .connection import db_connection
-from ..core.logging import get_logger
+from ..core.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -29,10 +29,10 @@ class VoiceprintDB:
                 ON DUPLICATE KEY UPDATE feature_vector=VALUES(feature_vector)
                 """
                 cursor.execute(sql, (speaker_id, emb.tobytes()))
-                logger.info(f"声纹特征保存成功: {speaker_id}")
+                logger.success(f"声纹特征保存成功: {speaker_id}")
                 return True
         except Exception as e:
-            logger.error(f"保存声纹特征失败 {speaker_id}: {e}")
+            logger.fail(f"保存声纹特征失败 {speaker_id}: {e}")
             return False
 
     def get_voiceprints(

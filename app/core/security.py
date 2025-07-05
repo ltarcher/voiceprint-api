@@ -1,7 +1,7 @@
 from fastapi import HTTPException, Header
 from typing import Optional
 from .config import settings
-from .logging import get_logger
+from .logger import get_logger
 
 logger = get_logger(__name__)
 

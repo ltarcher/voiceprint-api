@@ -2,7 +2,7 @@ import pymysql
 from typing import Optional
 from contextlib import contextmanager
 from ..core.config import settings
-from ..core.logging import get_logger
+from ..core.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -38,9 +38,9 @@ class DatabaseConnection:
                 read_timeout=30,
                 write_timeout=30,
             )
-            logger.info("数据库连接成功")
+            logger.success("数据库连接成功")
         except Exception as e:
-            logger.error(f"数据库连接失败: {e}")
+            logger.fail(f"数据库连接失败: {e}")
             raise
 
     @contextmanager
@@ -54,7 +54,7 @@ class DatabaseConnection:
             cursor = self._connection.cursor()
             yield cursor
         except Exception as e:
-            logger.error(f"数据库操作失败: {e}")
+            logger.fail(f"数据库操作失败: {e}")
             if self._connection:
                 self._connection.rollback()
             raise
@@ -70,7 +70,10 @@ class DatabaseConnection:
 
     def __del__(self):
         """析构函数，确保连接被关闭"""
-        self.close()
+        try:
+            self.close()
+        except:
+            pass  # 忽略析构时的异常
 
 
 # 全局数据库连接实例

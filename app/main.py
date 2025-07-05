@@ -1,12 +1,14 @@
+# 导入统一日志模块
+from app.core.logger import setup_logging, get_logger
+
+# 设置日志（只调用一次）
+setup_logging()
+
 import socket
 import uvicorn
-
 from .core.config import settings
-from .core.logging import setup_logging, get_logger
-from .application import app
 
 # 设置日志
-setup_logging()
 logger = get_logger(__name__)
 
 
@@ -24,17 +26,15 @@ def get_local_ip() -> str:
 
 if __name__ == "__main__":
     try:
-        logger.info(
-            f"开发环境服务启动中，监听地址: {settings.host}:{settings.port}，"
-            f"文档: http://{settings.host}:{settings.port}/voiceprint/docs"
-        )
-        print("=" * 60)
+        logger.start(f"开发环境服务启动，监听地址: {settings.host}:{settings.port}")
+        logger.info(f"API文档: http://{settings.host}:{settings.port}/voiceprint/docs")
+        logger.info("=" * 60)
         local_ip = get_local_ip()
-        print(
+        logger.info(
             f"声纹接口地址: http://{local_ip}:{settings.port}/voiceprint/health?key="
             + settings.api_token
         )
-        print("=" * 60)
+        logger.info("=" * 60)
 
         # 启动服务
         uvicorn.run(
@@ -43,9 +43,11 @@ if __name__ == "__main__":
             port=settings.port,
             reload=True,  # 开发环境开启热重载
             workers=1,  # 单进程模式，避免模型重复加载
+            access_log=False,  # 关闭uvicorn自带access日志
+            log_level="info",
         )
     except KeyboardInterrupt:
         logger.info("收到中断信号，正在退出服务。")
     except Exception as e:
-        logger.error(f"服务启动失败: {e}")
+        logger.fail(f"服务启动失败: {e}")
         raise

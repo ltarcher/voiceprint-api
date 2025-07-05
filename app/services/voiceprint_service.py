@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 from modelscope.pipelines import pipeline
 from modelscope.utils.constant import Tasks
 from ..core.config import settings
-from ..core.logging import get_logger
+from ..core.logger import get_logger
 from ..database.voiceprint_db import voiceprint_db
 from ..utils.audio_utils import audio_processor
 
@@ -21,11 +21,12 @@ class VoiceprintService:
         self.similarity_threshold = settings.similarity_threshold
         self._pipeline_lock = threading.Lock()  # 添加线程锁
         self._init_pipeline()
+        self._warmup_model()  # 添加模型预热
 
     def _init_pipeline(self) -> None:
         """初始化声纹识别模型"""
         start_time = time.time()
-        logger.info("开始初始化声纹识别模型...")
+        logger.start("初始化声纹识别模型")
 
         try:
             # 检查CUDA可用性
@@ -44,11 +45,81 @@ class VoiceprintService:
             )
 
             init_time = time.time() - start_time
-            logger.info(f"声纹模型加载成功，耗时: {init_time:.3f}秒")
+            logger.complete("初始化声纹识别模型", init_time)
         except Exception as e:
             init_time = time.time() - start_time
-            logger.error(f"声纹模型加载失败，耗时: {init_time:.3f}秒，错误: {e}")
+            logger.fail(f"声纹模型加载失败，耗时: {init_time:.3f}秒，错误: {e}")
             raise
+
+    def _warmup_model(self) -> None:
+        """模型预热，避免第一次推理的延迟"""
+        start_time = time.time()
+        logger.start("开始模型预热")
+
+        try:
+            # 预热librosa重采样组件
+            logger.debug("预热librosa重采样组件...")
+            import librosa
+            import soundfile as sf
+            import tempfile
+
+            # 生成一个更真实的测试音频（1秒的随机音频，模拟真实语音）
+            sample_rate = 16000
+            duration = 1.0  # 1秒
+            samples = int(sample_rate * duration)
+
+            # 生成随机音频数据，模拟真实语音
+            np.random.seed(42)  # 固定随机种子，确保可重现
+            test_audio = (
+                np.random.randn(samples).astype(np.float32) * 0.1
+            )  # 小幅度随机音频
+
+            # 创建不同采样率的音频文件进行预热
+            test_rates = [8000, 22050, 44100, 16000]  # 测试不同采样率
+
+            for test_rate in test_rates:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmpf:
+                    # 生成测试采样率的音频
+                    test_samples = int(test_rate * duration)
+                    test_audio_resampled = librosa.resample(
+                        test_audio, orig_sr=sample_rate, target_sr=test_rate
+                    )
+                    sf.write(tmpf.name, test_audio_resampled, test_rate)
+                    temp_audio_path = tmpf.name
+
+                try:
+                    # 使用音频处理器处理这个文件（预热音频处理流程）
+                    with open(temp_audio_path, "rb") as f:
+                        audio_bytes = f.read()
+
+                    # 预热音频处理
+                    processed_path = audio_processor.ensure_16k_wav(audio_bytes)
+
+                    # 预热模型推理
+                    with self._pipeline_lock:
+                        result = self._pipeline([processed_path], output_emb=True)
+                        emb = self._to_numpy(result["embs"][0]).astype(np.float32)
+                        logger.debug(
+                            f"模型预热完成 ({test_rate}Hz -> 16kHz)，特征维度: {emb.shape}"
+                        )
+
+                    # 清理处理后的文件
+                    audio_processor.cleanup_temp_file(processed_path)
+
+                finally:
+                    # 清理临时文件
+                    import os
+
+                    if os.path.exists(temp_audio_path):
+                        os.unlink(temp_audio_path)
+
+            warmup_time = time.time() - start_time
+            logger.complete("模型预热完成", warmup_time)
+
+        except Exception as e:
+            warmup_time = time.time() - start_time
+            logger.warning(f"模型预热失败，耗时: {warmup_time:.3f}秒，错误: {e}")
+            # 预热失败不影响服务启动，只记录警告
 
     def _to_numpy(self, x) -> np.ndarray:
         """
@@ -73,7 +144,7 @@ class VoiceprintService:
             np.ndarray: 声纹特征向量
         """
         start_time = time.time()
-        logger.info(f"开始提取声纹特征，音频文件: {audio_path}")
+        logger.start(f"提取声纹特征，音频文件: {audio_path}")
 
         try:
             # 使用线程锁确保模型推理的线程安全
@@ -95,13 +166,11 @@ class VoiceprintService:
             logger.debug(f"数据转换完成，耗时: {convert_time:.3f}秒")
 
             total_time = time.time() - start_time
-            logger.info(
-                f"声纹特征提取成功，维度: {emb.shape}，总耗时: {total_time:.3f}秒"
-            )
+            logger.complete(f"提取声纹特征，维度: {emb.shape}", total_time)
             return emb
         except Exception as e:
             total_time = time.time() - start_time
-            logger.error(f"声纹特征提取失败，总耗时: {total_time:.3f}秒，错误: {e}")
+            logger.fail(f"声纹特征提取失败，总耗时: {total_time:.3f}秒，错误: {e}")
             raise
 
     def calculate_similarity(self, emb1: np.ndarray, emb2: np.ndarray) -> float:

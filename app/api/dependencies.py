@@ -2,7 +2,7 @@ from fastapi import Depends, Header, HTTPException
 from fastapi.security import HTTPBearer
 from typing import Annotated
 from ..core.security import verify_token
-from ..core.logging import get_logger
+from ..core.logger import get_logger
 
 logger = get_logger(__name__)
 

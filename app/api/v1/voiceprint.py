@@ -5,7 +5,7 @@ import time
 from ...models.voiceprint import VoiceprintRegisterResponse, VoiceprintIdentifyResponse
 from ...services.voiceprint_service import voiceprint_service
 from ...api.dependencies import AuthorizationToken
-from ...core.logging import get_logger
+from ...core.logger import get_logger
 
 # 创建安全模式
 security = HTTPBearer(description="接口令牌")
@@ -57,7 +57,7 @@ async def register_voiceprint(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"声纹注册异常: {e}")
+        logger.fail(f"声纹注册异常: {e}")
         raise HTTPException(status_code=500, detail=f"声纹注册失败: {str(e)}")
 
 
